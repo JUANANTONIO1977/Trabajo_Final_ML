@@ -1,0 +1,203 @@
+---
+title: "Final Proyect Practical Machine Learning"
+author: "Juan Andrade"
+date: "10/4/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Review criteria
+
+## What you should submit
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+Peer Review Portion
+Your submission for the Peer Review portion should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+
+Course Project Prediction Quiz Portion
+Apply your machine learning algorithm to the 20 test cases available in the test data above and submit your predictions in appropriate format to the Course Project Prediction Quiz for automated grading.
+
+## Reproducibility
+
+Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis.
+
+# Prediction Assignment Writeup
+
+## Background
+
+This is an R Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Data loading and analysis
+
+As a first step, we upload the necessary libraries for the analysis
+
+```{r,echo=TRUE}
+
+library(rpart)
+library(rattle)
+library(caret)
+library(randomForest)
+
+```
+Then we upload our data to objects of the R tool to be able to carry out the modeling. In addition, we observe the dimensions of the same
+
+```{r,echo=TRUE}
+
+Url_train <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+Url_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+Archivo_train <- "pml-trainging.csv"
+Archivo_test <- "pml-testing.csv"
+
+if (!file.exists(Archivo_train)){download.file(Url_train, Archivo_train, method = "curl")}
+if (!file.exists(Archivo_test)){download.file(Url_test, Archivo_test, method = "curl")}
+
+training <- read.csv(Archivo_train)
+testing <- read.csv(Archivo_test)
+
+dim(training)
+dim(testing)
+
+```
+We partition the data:
+
+```{r,echo=TRUE}
+
+inTrain <- createDataPartition(training$classe, p = .7, list = FALSE)
+data_train <- training[inTrain,]
+data_test <- training[-inTrain,]
+
+```
+We carry out the preparation and cleaning of the data where the N/A fields are eliminated, the variables with variance 0 such as those of identity.
+
+```{r,echo=TRUE}
+
+
+data_train <- data_train[, colSums(is.na(data_train)) == 0]
+data_test <- data_test[, colSums(is.na(data_test)) == 0]
+
+VarianceZero <- nearZeroVar(data_train)
+
+data_train <- data_train[,-VarianceZero]
+data_test <- data_test[,-VarianceZero]
+
+data_train <- data_train[,-(1:5)]
+data_test <- data_test[,-(1:5)]
+
+```
+
+The construction of the models will be carried out, in addition to the cross-validation.
+
+###Random Forest:
+
+```{r,echo=TRUE}
+
+Model_RandomForest <- train(classe ~., data = data_train, method = "rf",
+                trControl = trainControl("cv", number = 5))
+Model_RandomForest$finalModel
+```
+
+Prediction with Random Forest:
+
+
+```{r,echo=TRUE}
+
+Predict_Model_RF <- predict(Model_RandomForest, data_test)
+Matrix_RF <-confusionMatrix(Predict_Model_RF,as.factor(data_test$classe))
+Accuracy_RF <- Matrix_RF$overall[1]
+Error_RF <- 1 - Matrix_RF$overall[1]
+```
+The accuracy in this case is:
+
+```{r,echo=TRUE}
+
+Accuracy_RF
+```
+And the error (1-accuracy) is:
+
+```{r,echo=TRUE}
+Error_RF
+
+```
+
+
+### Generalized Boosted Model
+
+Then we are going to do the Generalized Boosted Model.
+
+```{r,echo=TRUE}
+
+Model_GBM <- train(classe ~., data = data_train, method = "gbm", verbose = FALSE,
+                 trControl = trainControl(method = "cv", number = 5))
+Model_GBM
+```
+
+We get the prediction of the model
+
+
+```{r,echo=TRUE}
+Predict_Model_GBM <- predict(Model_GBM, data_test)
+Matrix_GBM <- confusionMatrix(Predict_Model_GBM,as.factor(data_test$classe))
+Accuracy_GBM <- Matrix_GBM$overall[1]
+Error_GBM <- 1 - Matrix_GBM$overall[1]
+```
+
+In the modelo GBM, the accuracy is: 
+
+```{r,echo=TRUE}
+Accuracy_GBM
+```
+
+And the error (1-accuracy) is :
+
+```{r,echo=TRUE}
+Error_GBM
+```
+
+### Decision Tree
+
+Finally, we are going to make a Decision Tree model
+
+```{r,echo=TRUE}
+
+Moldel_Des_Tree <- train(classe ~., data = data_train, method = "rpart")
+Moldel_Des_Tree
+```
+
+We get the prediction of the model
+
+```{r,echo=TRUE}
+Predict_Model_DT <- predict(Moldel_Des_Tree, data_test)
+Matrix_DT <- confusionMatrix(Predict_Model_DT, as.factor(data_test$classe))
+Accuracy_DT <- Matrix_DT$overall[1]
+Error_DT <- 1 - Matrix_DT$overall[1]
+```
+In this case the accuracy is:
+
+```{r,echo=TRUE}
+Accuracy_DT
+```
+
+And the error is:
+
+```{r,echo=TRUE}
+Error_DT
+```
+
+## Conclusions
+
+Of the three models made, the one with the best accuracy and the least error is the Random Forest model, with which it is concluded that it is the best model (selected model).
